@@ -92,6 +92,9 @@ function setupEventListeners() {
     document.getElementById('manualQRInput')?.addEventListener('keypress', (e) => {
         if (e.key === 'Enter') submitManualScan();
     });
+    
+    // Load available cameras
+    loadAvailableCameras();
 
     // Demo mode button (for testing without camera)
     const cameraPreview = document.querySelector('.camera-preview');
@@ -158,9 +161,39 @@ function handleTabChange(e) {
 // CAMERA & SCANNING
 // ============================================
 
+// List available cameras and populate dropdown
+async function loadAvailableCameras() {
+    try {
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const videoDevices = devices.filter(device => device.kind === 'videoinput');
+        
+        if (videoDevices.length === 0) return;
+        
+        const cameraSelect = document.getElementById('cameraSelect');
+        cameraSelect.innerHTML = '<option value="">Auto Select</option>';
+        
+        videoDevices.forEach((device, index) => {
+            const option = document.createElement('option');
+            option.value = device.deviceId;
+            option.textContent = device.label || `Camera ${index + 1}`;
+            cameraSelect.appendChild(option);
+        });
+        
+        // Show dropdown if more than 1 camera
+        if (videoDevices.length > 1) {
+            cameraSelect.style.display = 'inline-flex';
+        }
+    } catch (error) {
+        console.error('Error enumerating cameras:', error);
+    }
+}
+
 async function startCamera() {
     try {
-        const constraints = {
+        const cameraSelect = document.getElementById('cameraSelect');
+        const selectedDeviceId = cameraSelect.value;
+        
+        let constraints = {
             video: {
                 width: { ideal: 640 },
                 height: { ideal: 480 },
@@ -168,6 +201,15 @@ async function startCamera() {
             },
             audio: false
         };
+        
+        // If user selected a specific camera
+        if (selectedDeviceId) {
+            constraints.video = {
+                deviceId: { exact: selectedDeviceId },
+                width: { ideal: 640 },
+                height: { ideal: 480 }
+            };
+        }
 
         const stream = await navigator.mediaDevices.getUserMedia(constraints);
 
@@ -181,6 +223,7 @@ async function startCamera() {
 
         document.getElementById('startCameraBtn').style.display = 'none';
         document.getElementById('stopCameraBtn').style.display = 'inline-flex';
+        document.getElementById('cameraSelect').disabled = true;
 
         showToast('✓ Camera started', 'success');
         
@@ -219,6 +262,7 @@ function stopCamera() {
 
     document.getElementById('startCameraBtn').style.display = 'inline-flex';
     document.getElementById('stopCameraBtn').style.display = 'none';
+    document.getElementById('cameraSelect').disabled = false;
 
     showToast('Camera stopped', 'info');
 }
