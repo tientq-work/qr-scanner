@@ -1,10 +1,17 @@
 require('dotenv').config();
 const sqlite3 = require('sqlite3').verbose();
 const path = require('path');
+const fs = require('fs');
 const logger = require('../utils/logger');
 const InMemoryDB = require('./in-memory-db');
 
-const dbPath = path.join(__dirname, '../data/qr_scanner.db');
+const dataDir = path.join(__dirname, '../data');
+const dbPath = path.join(dataDir, 'qr_scanner.db');
+
+// Ensure data directory exists
+if (!fs.existsSync(dataDir)) {
+  fs.mkdirSync(dataDir, { recursive: true });
+}
 
 class Database {
   constructor() {
