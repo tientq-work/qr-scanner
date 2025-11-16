@@ -179,8 +179,8 @@ async function loadAvailableCameras() {
             cameraSelect.appendChild(option);
         });
         
-        // Show dropdown if more than 1 camera
-        if (videoDevices.length > 1) {
+        // Always show dropdown if cameras available
+        if (videoDevices.length > 0) {
             cameraSelect.style.display = 'inline-flex';
         }
     } catch (error) {
