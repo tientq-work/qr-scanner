@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QR Scanner - Nhanh</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container { max-width: 800px; margin: 0 auto; }
+        .header {
+            color: white;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .header h1 {
+            font-size: 28px;
+            margin-bottom: 5px;
+        }
+        .header p {
+            font-size: 14px;
+            opacity: 0.9;
+        }
+        .card {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+        .btn {
+            padding: 12px 20px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            transition: all 0.3s;
+            display: inline-block;
+        }
+        .btn-primary {
+            background: #667eea;
+            color: white;
+        }
+        .btn-primary:hover {
+            background: #5568d3;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+        .btn-danger {
+            background: #f56565;
+            color: white;
+        }
+        .btn-danger:hover {
+            background: #e53e3e;
+        }
+        .input-group {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+        input {
+            flex: 1;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 14px;
+        }
+        .scan-result {
+            background: #f0f4ff;
+            border-left: 4px solid #667eea;
+            padding: 12px;
+            margin-bottom: 10px;
+            border-radius: 4px;
+            font-size: 13px;
+        }
+        .scan-result.success {
+            background: #f0fdf4;
+            border-left-color: #22c55e;
+        }
+        .scan-result.error {
+            background: #fef2f2;
+            border-left-color: #ef4444;
+        }
+        .results-list {
+            max-height: 300px;
+            overflow-y: auto;
+            background: #fafafa;
+            border-radius: 6px;
+            padding: 10px;
+        }
+        .status {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 13px;
+            margin-bottom: 15px;
+        }
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #f56565;
+            animation: pulse 2s infinite;
+        }
+        .status-dot.active {
+            background: #22c55e;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        .video-container {
+            position: relative;
+            width: 100%;
+            max-width: 400px;
+            margin: 0 auto;
+        }
+        video {
+            width: 100%;
+            border-radius: 8px;
+            background: #000;
+        }
+        .counter {
+            text-align: center;
+            font-size: 18px;
+            font-weight: bold;
+            color: #667eea;
+            margin: 15px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📱 QR Scanner</h1>
+            <p>Nhanh - Đơn giản - Hiệu quả</p>
+        </div>
+
+        <!-- Status -->
+        <div class="card">
+            <div class="status">
+                <div class="status-dot active"></div>
+                <span id="statusText">Sẵn sàng</span>
+            </div>
+        </div>
+
+        <!-- Manual Input -->
+        <div class="card">
+            <h3 style="margin-bottom: 12px;">Nhập QR Code</h3>
+            <div class="input-group">
+                <input type="text" id="qrInput" placeholder="Quét hoặc gõ mã QR..." autofocus>
+                <button class="btn btn-primary" onclick="submitQR()">Gửi</button>
+            </div>
+        </div>
+
+        <!-- Counter -->
+        <div class="card">
+            <div class="counter">
+                <span id="scanCount">0</span> lần quét
+            </div>
+        </div>
+
+        <!-- Demo Mode -->
+        <div class="card">
+            <button class="btn btn-primary" onclick="startDemo()" style="width: 100%; margin-bottom: 10px;">
+                🤖 Chế độ Demo
+            </button>
+            <button class="btn btn-danger" onclick="stopDemo()" style="width: 100%;">
+                ⏹️ Dừng Demo
+            </button>
+        </div>
+
+        <!-- Results -->
+        <div class="card">
+            <h3 style="margin-bottom: 12px;">Kết quả quét</h3>
+            <div class="results-list" id="resultsList">
+                <div style="text-align: center; color: #999; padding: 20px;">Chưa có kết quả</div>
+            </div>
+            <button class="btn btn-danger" onclick="clearResults()" style="width: 100%; margin-top: 10px;">
+                Xóa
+            </button>
+        </div>
+    </div>
+
+    <script>
+        const STATE = {
+            scanCount: 0,
+            results: [],
+            demoActive: false,
+            demoInterval: null
+        };
+
+        const PRODUCTS = [
+            { id: 'SKU001', name: 'Sản phẩm A' },
+            { id: 'SKU002', name: 'Sản phẩm B' },
+            { id: 'SKU003', name: 'Sản phẩm C' },
+            { id: 'SKU004', name: 'Sản phẩm D' },
+            { id: 'SKU005', name: 'Sản phẩm E' }
+        ];
+
+        // Khởi tạo
+        document.addEventListener('DOMContentLoaded', () => {
+            document.getElementById('qrInput').focus();
+            loadResults();
+        });
+
+        // Submit QR
+        function submitQR() {
+            const input = document.getElementById('qrInput');
+            const qr = input.value.trim();
+            
+            if (!qr) {
+                alert('Vui lòng nhập mã QR');
+                return;
+            }
+
+            addScan(qr);
+            input.value = '';
+            input.focus();
+        }
+
+        // Add scan result
+        function addScan(qrCode) {
+            const product = PRODUCTS.find(p => p.id === qrCode) || {
+                id: qrCode,
+                name: 'Không xác định'
+            };
+
+            const scan = {
+                id: Date.now(),
+                qrCode: qrCode,
+                productId: product.id,
+                productName: product.name,
+                timestamp: new Date().toLocaleTimeString('vi-VN'),
+                success: !!PRODUCTS.find(p => p.id === qrCode)
+            };
+
+            STATE.results.unshift(scan);
+            STATE.scanCount++;
+            
+            // Keep only last 50 results
+            if (STATE.results.length > 50) {
+                STATE.results.pop();
+            }
+
+            updateUI();
+            saveResults();
+            
+            // Send to server
+            sendToServer(scan);
+        }
+
+        // Update UI
+        function updateUI() {
+            document.getElementById('scanCount').textContent = STATE.scanCount;
+            
+            const resultsList = document.getElementById('resultsList');
+            if (STATE.results.length === 0) {
+                resultsList.innerHTML = '<div style="text-align: center; color: #999; padding: 20px;">Chưa có kết quả</div>';
+                return;
+            }
+
+            resultsList.innerHTML = STATE.results.map(r => `
+                <div class="scan-result ${r.success ? 'success' : 'error'}">
+                    <strong>${r.productName}</strong> (${r.qrCode})<br>
+                    <small>${r.timestamp}</small>
+                </div>
+            `).join('');
+        }
+
+        // Demo mode
+        function startDemo() {
+            if (STATE.demoActive) return;
+            STATE.demoActive = true;
+            document.getElementById('statusText').textContent = '🤖 Demo Mode';
+            
+            STATE.demoInterval = setInterval(() => {
+                const product = PRODUCTS[Math.floor(Math.random() * PRODUCTS.length)];
+                addScan(product.id);
+            }, 1000);
+        }
+
+        function stopDemo() {
+            STATE.demoActive = false;
+            clearInterval(STATE.demoInterval);
+            document.getElementById('statusText').textContent = 'Sẵn sàng';
+        }
+
+        // Clear results
+        function clearResults() {
+            if (confirm('Xóa tất cả kết quả?')) {
+                STATE.results = [];
+                updateUI();
+                localStorage.removeItem('qrResults');
+            }
+        }
+
+        // Save/Load results
+        function saveResults() {
+            localStorage.setItem('qrResults', JSON.stringify({
+                scanCount: STATE.scanCount,
+                results: STATE.results
+            }));
+        }
+
+        function loadResults() {
+            const saved = localStorage.getItem('qrResults');
+            if (saved) {
+                const data = JSON.parse(saved);
+                STATE.scanCount = data.scanCount || 0;
+                STATE.results = data.results || [];
+                updateUI();
+            }
+        }
+
+        // Send to server
+        function sendToServer(scan) {
+            const apiUrl = localStorage.getItem('apiUrl') || 'http://localhost:3000/api';
+            
+            fetch(`${apiUrl}/qr/scan`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    qrCode: scan.qrCode,
+                    productName: scan.productName,
+                    productId: scan.productId,
+                    cameraId: 'web-scanner'
+                })
+            }).catch(err => {
+                console.warn('Server error:', err.message);
+            });
+        }
+
+        // Enter key support
+        document.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter' && document.getElementById('qrInput') === document.activeElement) {
+                submitQR();
+            }
+        });
+    </script>
+</body>
+</html>

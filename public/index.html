@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QR Scanner API - Băng Chuyền</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="css/styles.css">
+    <style>
+        /* Critical CSS for faster rendering */
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f5f5f5; }
+        .container { max-width: 1200px; margin: 0 auto; padding: 0 15px; }
+        .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px 0; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        .tabs { display: flex; gap: 10px; margin: 20px 0; border-bottom: 2px solid #ddd; }
+        .tab { padding: 10px 20px; cursor: pointer; border: none; background: none; font-size: 14px; color: #666; }
+        .tab.active { color: #667eea; border-bottom: 2px solid #667eea; margin-bottom: -2px; }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+        .card { background: white; border-radius: 8px; padding: 20px; margin: 15px 0; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="container">
+            <div class="header-content">
+                <div class="logo">
+                    <i class="fas fa-barcode"></i>
+                    <span>QR Scanner API</span>
+                </div>
+                <div class="status-indicator" id="statusIndicator">
+                    <span class="status-dot"></span>
+                    <span class="status-text">Offline</span>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Container -->
+    <div class="container">
+        <!-- Navigation Tabs -->
+        <nav class="tabs">
+            <button class="tab-btn active" data-tab="scanner">
+                <i class="fas fa-camera"></i> Quét
+            </button>
+            <button class="tab-btn" data-tab="batch">
+                <i class="fas fa-list"></i> Batch
+            </button>
+            <button class="tab-btn" data-tab="stats">
+                <i class="fas fa-chart-bar"></i> Thống Kê
+            </button>
+            <button class="tab-btn" data-tab="history">
+                <i class="fas fa-history"></i> Lịch Sử
+            </button>
+            <button class="tab-btn" data-tab="settings">
+                <i class="fas fa-cog"></i> Cài Đặt
+            </button>
+        </nav>
+
+        <!-- Tab Content -->
+        <div class="tab-content">
+            <!-- Scanner Tab -->
+            <div id="scanner" class="tab-pane active">
+                <div class="grid-2">
+                    <!-- Camera Preview -->
+                    <div class="card">
+                        <div class="card-header">
+                            <h3><i class="fas fa-camera"></i> Camera Preview</h3>
+                        </div>
+                        <div class="card-body">
+                            <div class="camera-preview" id="cameraPreview">
+                                <video id="videoStream" autoplay playsinline></video>
+                                <canvas id="canvasStream" style="display: none;"></canvas>
+                                <div class="camera-overlay">
+                                    <div class="scan-box"></div>
+                                </div>
+                                <div class="camera-controls">
+                                    <button id="startCameraBtn" class="btn btn-primary btn-sm">
+                                        <i class="fas fa-play"></i> Bắt Đầu
+                                    </button>
+                                    <button id="stopCameraBtn" class="btn btn-danger btn-sm" style="display: none;">
+                                        <i class="fas fa-stop"></i> Dừng
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Scan Results -->
+                    <div class="card">
+                        <div class="card-header">
+                            <h3><i class="fas fa-check-circle"></i> Kết Quả Quét</h3>
+                        </div>
+                        <div class="card-body">
+                            <div class="scan-results" id="scanResults">
+                                <p class="text-muted">Chưa có dữ liệu quét</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Manual Input -->
+                <div class="card" style="margin-top: 20px;">
+                    <div class="card-header">
+                        <h3><i class="fas fa-keyboard"></i> Nhập Thủ Công</h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="form-group">
+                            <label for="manualQRInput">Mã QR:</label>
+                            <input type="text" id="manualQRInput" placeholder="Nhập mã QR hoặc dán từ clipboard">
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="manualProductName">Tên Sản Phẩm:</label>
+                                <input type="text" id="manualProductName" placeholder="Tên sản phẩm">
+                            </div>
+                            <div class="form-group">
+                                <label for="manualProductId">ID Sản Phẩm:</label>
+                                <input type="text" id="manualProductId" placeholder="ID sản phẩm">
+                            </div>
+                        </div>
+                        <button id="manualSubmitBtn" class="btn btn-primary">
+                            <i class="fas fa-paper-plane"></i> Gửi
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Batch Tab -->
+            <div id="batch" class="tab-pane">
+                <div class="card">
+                    <div class="card-header">
+                        <h3><i class="fas fa-list"></i> Batch Scanning</h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="form-group">
+                            <label for="batchTextarea">Danh Sách Mã QR (mỗi dòng một mã):</label>
+                            <textarea id="batchTextarea" rows="10" placeholder="PROD001&#10;PROD002&#10;PROD003"></textarea>
+                        </div>
+                        <button id="batchSubmitBtn" class="btn btn-primary">
+                            <i class="fas fa-upload"></i> Gửi Batch
+                        </button>
+                    </div>
+                </div>
+
+                <div class="card" style="margin-top: 20px;">
+                    <div class="card-header">
+                        <h3><i class="fas fa-tasks"></i> Kết Quả Batch</h3>
+                    </div>
+                    <div class="card-body">
+                        <div id="batchResults">
+                            <p class="text-muted">Chưa có batch nào được xử lý</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Statistics Tab -->
+            <div id="stats" class="tab-pane">
+                <div class="grid-2">
+                    <!-- Performance Stats -->
+                    <div class="card">
+                        <div class="card-header">
+                            <h3><i class="fas fa-tachometer-alt"></i> Hiệu Năng</h3>
+                        </div>
+                        <div class="card-body">
+                            <div id="performanceStats">
+                                <div class="stat-item">
+                                    <span class="stat-label">Tổng Quét:</span>
+                                    <span class="stat-value" id="totalScans">0</span>
+                                </div>
+                                <div class="stat-item">
+                                    <span class="stat-label">QR Duy Nhất:</span>
+                                    <span class="stat-value" id="uniqueQR">0</span>
+                                </div>
+                                <div class="stat-item">
+                                    <span class="stat-label">Tốc Độ Xử Lý:</span>
+                                    <span class="stat-value" id="avgProcessing">0ms</span>
+                                </div>
+                                <div class="stat-item">
+                                    <span class="stat-label">Độ Tin Cậy Trung Bình:</span>
+                                    <span class="stat-value" id="avgConfidence">0%</span>
+                                </div>
+                                <div class="stat-item">
+                                    <span class="stat-label">Tốc Độ Quét:</span>
+                                    <span class="stat-value" id="scansPerHour">0/h</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Time Range Filter -->
+                    <div class="card">
+                        <div class="card-header">
+                            <h3><i class="fas fa-filter"></i> Bộ Lọc</h3>
+                        </div>
+                        <div class="card-body">
+                            <div class="form-group">
+                                <label for="statsHours">Khoảng Thời Gian (Giờ):</label>
+                                <select id="statsHours">
+                                    <option value="1">1 Giờ</option>
+                                    <option value="6">6 Giờ</option>
+                                    <option value="24" selected>24 Giờ</option>
+                                    <option value="168">7 Ngày</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label for="statsCameraId">Camera ID:</label>
+                                <input type="text" id="statsCameraId" placeholder="Để trống cho tất cả">
+                            </div>
+                            <button id="refreshStatsBtn" class="btn btn-primary">
+                                <i class="fas fa-sync"></i> Làm Mới
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Charts -->
+                <div class="grid-2" style="margin-top: 20px;">
+                    <div class="card">
+                        <div class="card-header">
+                            <h3><i class="fas fa-chart-line"></i> Quét Theo Giờ</h3>
+                        </div>
+                        <div class="card-body">
+                            <canvas id="hourlyChart"></canvas>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-header">
+                            <h3><i class="fas fa-chart-pie"></i> Top Sản Phẩm</h3>
+                        </div>
+                        <div class="card-body">
+                            <canvas id="topProductsChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Cameras -->
+                <div class="card" style="margin-top: 20px;">
+                    <div class="card-header">
+                        <h3><i class="fas fa-video"></i> Camera Hoạt Động</h3>
+                    </div>
+                    <div class="card-body">
+                        <div id="camerasList">
+                            <p class="text-muted">Không có camera hoạt động</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- History Tab -->
+            <div id="history" class="tab-pane">
+                <div class="card">
+                    <div class="card-header">
+                        <h3><i class="fas fa-history"></i> Lịch Sử Quét</h3>
+                        <div class="header-actions">
+                            <input type="search" id="historySearch" placeholder="Tìm kiếm...">
+                            <button id="exportHistoryBtn" class="btn btn-sm btn-secondary">
+                                <i class="fas fa-download"></i> Xuất
+                            </button>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table id="historyTable" class="table">
+                                <thead>
+                                    <tr>
+                                        <th>Thời Gian</th>
+                                        <th>Mã QR</th>
+                                        <th>Sản Phẩm</th>
+                                        <th>ID</th>
+                                        <th>Camera</th>
+                                        <th>Tốc Độ (ms)</th>
+                                        <th>Độ Tin Cậy</th>
+                                        <th>Trạng Thái</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="historyTableBody">
+                                    <tr>
+                                        <td colspan="8" class="text-center text-muted">Không có dữ liệu</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        <div class="pagination" id="historyPagination">
+                            <!-- Pagination buttons here -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Settings Tab -->
+            <div id="settings" class="tab-pane">
+                <div class="grid-2">
+                    <!-- API Settings -->
+                    <div class="card">
+                        <div class="card-header">
+                            <h3><i class="fas fa-server"></i> API Settings</h3>
+                        </div>
+                        <div class="card-body">
+                            <div class="form-group">
+                                <label for="apiUrl">API URL:</label>
+                                <input type="text" id="apiUrl" value="http://localhost:3000">
+                            </div>
+                            <div class="form-group">
+                                <label for="wsUrl">WebSocket URL:</label>
+                                <input type="text" id="wsUrl" value="ws://localhost:3000">
+                            </div>
+                            <div class="form-group">
+                                <label for="cameraId">Camera ID:</label>
+                                <input type="text" id="cameraId" value="camera_1" placeholder="ID camera">
+                            </div>
+                            <button id="testConnectionBtn" class="btn btn-primary">
+                                <i class="fas fa-plug"></i> Kiểm Tra Kết Nối
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Scanner Settings -->
+                    <div class="card">
+                        <div class="card-header">
+                            <h3><i class="fas fa-sliders-h"></i> Cài Đặt Quét</h3>
+                        </div>
+                        <div class="card-body">
+                            <div class="form-group">
+                                <label for="deduplicationTime">Thời Gian Deduplication (ms):</label>
+                                <input type="number" id="deduplicationTime" value="500" min="100" max="5000">
+                            </div>
+                            <div class="form-group">
+                                <label for="scanInterval">Khoảng Thời Gian Quét (ms):</label>
+                                <input type="number" id="scanInterval" value="100" min="30" max="1000">
+                            </div>
+                            <div class="form-group">
+                                <label for="confidenceThreshold">Ngưỡng Độ Tin Cậy:</label>
+                                <input type="range" id="confidenceThreshold" min="0" max="1" step="0.1" value="0.7">
+                                <span id="confidenceValue">0.7</span>
+                            </div>
+                            <label class="checkbox">
+                                <input type="checkbox" id="autoSave" checked>
+                                <span>Tự động lưu cài đặt</span>
+                            </label>
+                            <button id="saveSettingsBtn" class="btn btn-primary" style="margin-top: 10px;">
+                                <i class="fas fa-save"></i> Lưu Cài Đặt
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Danger Zone -->
+                <div class="card" style="margin-top: 20px; border-color: #ff6b6b;">
+                    <div class="card-header" style="background-color: #ffe0e0;">
+                        <h3><i class="fas fa-exclamation-triangle"></i> Vùng Nguy Hiểm</h3>
+                    </div>
+                    <div class="card-body">
+                        <p>Những tác vụ này không thể hoàn tác:</p>
+                        <button id="clearCacheBtn" class="btn btn-warning">
+                            <i class="fas fa-trash"></i> Xóa Cache
+                        </button>
+                        <button id="clearHistoryBtn" class="btn btn-danger">
+                            <i class="fas fa-bomb"></i> Xóa Lịch Sử
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <p>&copy; 2025 QR Scanner API - Realtime Conveyor System</p>
+    </footer>
+
+    <!-- Toast Notifications -->
+    <div id="toastContainer" class="toast-container"></div>
+
+    <!-- Modal -->
+    <div id="modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="modalTitle">Modal</h3>
+                <button class="modal-close">&times;</button>
+            </div>
+            <div class="modal-body" id="modalBody">
+                <!-- Content here -->
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" id="modalCancelBtn">Hủy</button>
+                <button class="btn btn-primary" id="modalConfirmBtn">Xác Nhận</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <!-- Load app.js immediately, Chart.js will load asynchronously -->
+    <script src="js/app.js"></script>
+    <script>
+        // Lazy load Chart.js only when Stats tab is clicked
+        document.addEventListener('tabchange', function(e) {
+            if (e.detail && e.detail.tabName === 'stats') {
+                if (!window.Chart) {
+                    const script = document.createElement('script');
+                    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js';
+                    document.head.appendChild(script);
+                }
+            }
+        });
+    </script>
+</body>
+</html>
