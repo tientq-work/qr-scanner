@@ -6,9 +6,31 @@
 // CONFIGURATION
 // ============================================
 
+// Auto-detect API and WS URLs based on current domain
+function getDefaultUrls() {
+    const host = window.location.host;
+    const protocol = window.location.protocol;
+    
+    // If on deployed domain, use secure WebSocket
+    if (host !== 'localhost:3000' && host !== 'localhost') {
+        return {
+            apiUrl: `${protocol}//` + host + '/api',
+            wsUrl: (protocol === 'https:' ? 'wss:' : 'ws:') + '//' + host
+        };
+    }
+    
+    // Local development
+    return {
+        apiUrl: 'http://localhost:3000/api',
+        wsUrl: 'ws://localhost:3000'
+    };
+}
+
+const defaultUrls = getDefaultUrls();
+
 const CONFIG = {
-    apiUrl: localStorage.getItem('apiUrl') || 'http://localhost:3000/api',
-    wsUrl: localStorage.getItem('wsUrl') || 'ws://localhost:3000',
+    apiUrl: localStorage.getItem('apiUrl') || defaultUrls.apiUrl,
+    wsUrl: localStorage.getItem('wsUrl') || defaultUrls.wsUrl,
     cameraId: localStorage.getItem('cameraId') || 'camera_1',
     deduplicationTime: parseInt(localStorage.getItem('deduplicationTime')) || 500,
     scanInterval: parseInt(localStorage.getItem('scanInterval')) || 100,
